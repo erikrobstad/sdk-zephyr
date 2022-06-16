@@ -35,7 +35,7 @@
 #define EP_ISO(_iso) CONTAINER_OF(_iso, struct bt_audio_ep, iso)
 
 static struct unicast_client_pac {
-	enum bt_audio_dir dir; /* type == PAC_TYPE_UNUSED means unused */
+	enum bt_audio_dir dir;
 	uint16_t context;
 	struct bt_codec codec;
 } cache[CONFIG_BT_MAX_CONN][CONFIG_BT_AUDIO_UNICAST_CLIENT_PAC_COUNT];
@@ -96,7 +96,7 @@ static void unicast_client_ep_iso_connected(struct bt_iso_chan *chan)
 {
 	struct bt_audio_ep *ep = EP_ISO(chan);
 
-	BT_DBG("stream %p ep %p type %u", chan, ep, ep != NULL ? ep->type : 0);
+	BT_DBG("stream %p ep %p dir %u", chan, ep, ep != NULL ? ep->dir : 0);
 
 	if (ep->status.state != BT_AUDIO_EP_STATE_ENABLING) {
 		BT_DBG("endpoint not in enabling state: %s",
@@ -123,10 +123,6 @@ static void unicast_client_ep_iso_disconnected(struct bt_iso_chan *chan,
 		BT_WARN("No callback for stopped set");
 	}
 
-	if (ep->type != BT_AUDIO_EP_LOCAL) {
-		return;
-	}
-
 	bt_unicast_client_ep_set_state(ep, BT_AUDIO_EP_STATE_QOS_CONFIGURED);
 
 	err = bt_audio_stream_iso_listen(stream);
@@ -143,15 +139,13 @@ static struct bt_iso_chan_ops unicast_client_iso_ops = {
 };
 
 static void unicast_client_ep_init(struct bt_audio_ep *ep, uint16_t handle,
-				   enum bt_audio_dir dir)
+				   uint8_t dir)
 {
-	BT_DBG("ep %p type 0x%02x handle 0x%04x id 0x%02x", ep, type, handle,
-	       id);
+	BT_DBG("ep %p dir 0x%02x handle 0x%04x", ep, dir, handle);
 
 	(void)memset(ep, 0, sizeof(*ep));
-	ep->type = type;
 	ep->handle = handle;
-	ep->status.id = id;
+	ep->status.id = 0U;
 	ep->iso.ops = &unicast_client_iso_ops;
 	ep->iso.qos = &ep->iso_qos;
 	ep->iso.qos->rx = &ep->iso_rx;
@@ -215,8 +209,7 @@ static struct bt_audio_ep *unicast_client_ep_new(struct bt_conn *conn,
 		struct bt_audio_ep *ep = &cache[i];
 
 		if (!ep->handle) {
-			unicast_client_ep_init(ep, BT_AUDIO_EP_REMOTE, handle,
-					       0x00, dir);
+			unicast_client_ep_init(ep, handle, dir);
 			return ep;
 		}
 	}
@@ -1697,7 +1690,7 @@ static uint8_t unicast_client_pacs_context_read_func(struct bt_conn *conn,
 	for (i = 0; i < CONFIG_BT_AUDIO_UNICAST_CLIENT_PAC_COUNT; i++) {
 		struct unicast_client_pac *pac = &cache[index][i];
 
-		if (pac->dir == PAC_TYPE_UNUSED) {
+		if (PAC_DIR_UNUSED(pac->dir)) {
 			continue;
 		}
 
@@ -1751,7 +1744,7 @@ static struct unicast_client_pac *unicast_client_pac_alloc(struct bt_conn *conn,
 	for (i = 0; i < CONFIG_BT_AUDIO_UNICAST_CLIENT_PAC_COUNT; i++) {
 		struct unicast_client_pac *pac = &cache[index][i];
 
-		if (pac->dir == PAC_TYPE_UNUSED) {
+		if (PAC_DIR_UNUSED(pac->dir)) {
 			pac->dir = dir;
 			return pac;
 		}
@@ -1882,7 +1875,7 @@ static void unicast_client_pac_reset(struct bt_conn *conn)
 	for (i = 0; i < CONFIG_BT_AUDIO_UNICAST_CLIENT_PAC_COUNT; i++) {
 		struct unicast_client_pac *pac = &cache[index][i];
 
-		if (pac->dir != PAC_TYPE_UNUSED) {
+		if (!PAC_DIR_UNUSED(pac->dir)) {
 			(void)memset(pac, 0, sizeof(*pac));
 		}
 	}
