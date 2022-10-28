@@ -144,8 +144,8 @@ static void bass_notify_receive_state(const struct bass_recv_state_internal *int
 				      internal_state->attr, read_buf.data,
 				      read_buf.len);
 
-	if (err != 0) {
-		BT_DBG("Could not notify receive state: %d", err);
+	if (err != 0 && err != -ENOTCONN) {
+		LOG_DBG("Could not notify receive state: %d", err);
 	}
 }
 
